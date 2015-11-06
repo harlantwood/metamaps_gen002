@@ -13,18 +13,6 @@ class MetacodeSetsController < ApplicationController
     end
   end
 
-  ### SHOW IS NOT CURRENTLY IN USE
-  # GET /metacode_sets/1
-  # GET /metacode_sets/1.json
-#  def show
-#    @metacode_set = MetacodeSet.find(params[:id])
-#
-#    respond_to do |format|
-#      format.html # show.html.erb
-#      format.json { render json: @metacode_set }
-#    end
-#  end
-
   # GET /metacode_sets/new
   # GET /metacode_sets/new.json
   def new
@@ -44,9 +32,8 @@ class MetacodeSetsController < ApplicationController
   # POST /metacode_sets
   # POST /metacode_sets.json
   def create
-    @user = current_user
     @metacode_set = MetacodeSet.new(metacode_set_params)
-    @metacode_set.user_id = @user.id
+    @metacode_set.user_id = current_user.id
 
     respond_to do |format|
       if @metacode_set.save
@@ -73,20 +60,20 @@ class MetacodeSetsController < ApplicationController
       if @metacode_set.update_attributes(metacode_set_params)
         
         # build an array of the IDs of the metacodes currently in the set
-        @currentMetacodes = @metacode_set.metacodes.map{ |m| m.id.to_s }  
+        currentMetacodes = @metacode_set.metacodes.map{ |m| m.id.to_s }
         # get the list of desired metacodes for the set from the user input and build an array out of it
-        @newMetacodes = params[:metacodes][:value].split(',')
+        newMetacodes = params[:metacodes][:value].split(',')
           
         #remove the metacodes that were in it, but now aren't
-        @removedMetacodes = @currentMetacodes - @newMetacodes
-        @removedMetacodes.each do |m|
-          @inmetacodeset = InMetacodeSet.find_by_metacode_id_and_metacode_set_id(m, @metacode_set.id)
-          @inmetacodeset.destroy
+        removedMetacodes = currentMetacodes - newMetacodes
+        removedMetacodes.each do |m|
+          inmetacodeset = InMetacodeSet.find_by_metacode_id_and_metacode_set_id(m, @metacode_set.id)
+          inmetacodeset.destroy
         end
           
         # add the new metacodes
-        @addedMetacodes = @newMetacodes - @currentMetacodes
-        @addedMetacodes.each do |m|
+        addedMetacodes = newMetacodes - currentMetacodes
+        addedMetacodes.each do |m|
            InMetacodeSet.create(:metacode_id => m, :metacode_set_id => @metacode_set.id)
         end
         
