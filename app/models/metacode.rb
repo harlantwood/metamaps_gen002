@@ -1,7 +1,5 @@
 class Metacode < ActiveRecord::Base
-
-  has_many :in_metacode_sets
-  has_many :metacode_sets, :through => :in_metacode_sets 
+  has_and_belongs_to_many :metacode_sets, join_table: :in_metacode_sets, autosave: true
   has_many :topics
 
   def hasSelected(user)
