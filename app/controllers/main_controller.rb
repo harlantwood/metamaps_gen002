@@ -67,7 +67,7 @@ class MainController < ApplicationController
     #TODO check errors?
     term = term[6..-1] if term.downcase[0..5] == "topic:"
 
-    if term.blank? || term[0..3] == "map:" || term[0..6] == "mapper":
+    if term.blank? || term[0..3] == "map:" || term[0..6] == "mapper"
       @topics = []
     elisf term[0..4] == "desc:"
       @topics = searchtopics_desc(term[5..-1], user)
