@@ -1,25 +1,22 @@
 class UsersController < ApplicationController
   before_filter :require_user, only: [:edit, :update, :updatemetacodes]
+  before_action :set_user, only: [:edit, :update, update_metacodes]
+  before_action :find_user, only: [:show]
     
   respond_to :html, :json 
 
   # GET /users/1.json
   def show
-    @user = User.find(params[:id])
-
     render json: @user
   end  
     
   # GET /users/:id/edit
   def edit
-    @user = current_user
     respond_with(@user)  
   end
   
   # PUT /users/:id
   def update
-    @user = current_user
-
     if user_params[:password] == "" && user_params[:password_confirmation] == ""
       # not trying to change the password
       if @user.update_attributes(user_params.except(:password, :password_confirmation))
@@ -67,27 +64,15 @@ class UsersController < ApplicationController
     
   # GET /users/:id/details [.json]
   def details
-    @user = User.find(params[:id])
-    
-    @details = Hash.new
-
-    @details['name'] = @user.name
-    @details['created_at'] = @user.created_at.strftime("%m/%d/%Y")
-    @details['image'] = @user.image.url(:ninetysix)
-    @details['generation'] = @user.generation
-    @details['numSynapses'] = @user.synapses.count
-    @details['numTopics'] = @user.topics.count
-    @details['numMaps'] = @user.maps.count
-
+    user = User.find(params[:id])
+    @details = user.details_json
     render json: @details 
   end
 
   # PUT /user/updatemetacodes
   def updatemetacodes
-    @user = current_user
-    
-    @m = params[:metacodes][:value]
-    @user.settings.metacodes=@m.split(',')
+    metacode_set = params[:metacodes][:value]
+    @user.settings.metacodes = metacode_set.split(',')
     
     @user.save
 
@@ -97,6 +82,14 @@ class UsersController < ApplicationController
   end
 
   private
+
+  def set_user
+    @user = current_user
+  end
+
+  def find_user
+    @user = User.find(params[:id])
+  end
 
   def user_params
     params.require(:user).permit(:name, :email, :image, :password, :password_confirmation)

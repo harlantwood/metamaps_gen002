@@ -5,7 +5,7 @@ class Mapping < ActiveRecord::Base
 
   belongs_to :mappable, polymorphic: true
 
-  belongs_to :map, :class_name => "Map", :foreign_key => "map_id"
+  belongs_to :map, touch: true
 
   belongs_to :user
   

@@ -1,5 +1,4 @@
 class MapsController < ApplicationController
-
     before_filter :require_user, only: [:create, :update, :screenshot, :destroy]
 
     respond_to :html, :json
@@ -10,7 +9,6 @@ class MapsController < ApplicationController
     # GET /explore/featured
     # GET /explore/mapper/:id
     def index
-
         if request.path == "/explore"
             redirect_to activemaps_url and return
         end
@@ -61,9 +59,7 @@ class MapsController < ApplicationController
 
     # GET maps/:id
     def show
-
-        @current = current_user
-        @map = Map.find(params[:id]).authorize_to_show(@current)
+        @map = Map.find(params[:id]).authorize_to_show(current_user)
 
         if not @map
             redirect_to root_url, notice: "Access denied. That map is private." and return
@@ -71,15 +67,8 @@ class MapsController < ApplicationController
 
         respond_to do |format|
             format.html { 
-                @allmappers = @map.contributors
-                @alltopics = @map.topics.to_a.delete_if {|t| t.permission == "private" && (!authenticated? || (authenticated? && @current.id != t.user_id)) }
-                @allsynapses = @map.synapses.to_a.delete_if {|s| s.permission == "private" && (!authenticated? || (authenticated? && @current.id != s.user_id)) }
-                @allmappings = @map.mappings.to_a.delete_if {|m| 
-                    object = m.mappable
-                    !object || (object.permission == "private" && (!authenticated? || (authenticated? && @current.id != object.user_id)))
-                }
-
-                respond_with(@allmappers, @allmappings, @allsynapses, @alltopics, @map) 
+                @map = MapFacade.new(@map)
+                respond_with(@map)
             }
             format.json { render json: @map }
         end
@@ -87,31 +76,16 @@ class MapsController < ApplicationController
 
     # GET maps/:id/contains
     def contains
-
-        @current = current_user
-        @map = Map.find(params[:id]).authorize_to_show(@current)
+        @map = Map.find(params[:id]).authorize_to_show(current_user)
 
         if not @map
             redirect_to root_url, notice: "Access denied. That map is private." and return
         end
 
-        @allmappers = @map.contributors
-        @alltopics = @map.topics.to_a.delete_if {|t| t.permission == "private" && (!authenticated? || (authenticated? && @current.id != t.user_id)) }
-        @allsynapses = @map.synapses.to_a.delete_if {|s| s.permission == "private" && (!authenticated? || (authenticated? && @current.id != s.user_id)) }
-        @allmappings = @map.mappings.to_a.delete_if {|m| 
-            object = m.mappable
-            !object || (object.permission == "private" && (!authenticated? || (authenticated? && @current.id != object.user_id)))
-        }
-
-        @json = Hash.new()
-        @json['map'] = @map
-        @json['topics'] = @alltopics
-        @json['synapses'] = @allsynapses
-        @json['mappings'] = @allmappings
-        @json['mappers'] = @allmappers
+        @map = MapFacade.new(@map)
 
         respond_to do |format|
-            format.json { render json: @json }
+            format.json { render json: @map.json_contains }
         end
     end
 
@@ -164,11 +138,10 @@ class MapsController < ApplicationController
 
     # PUT maps/:id
     def update
-        @current = current_user
-        @map = Map.find(params[:id]).authorize_to_edit(@current)
+        @map = Map.find(params[:id]).authorize_to_edit(current_user)
 
         respond_to do |format|
-            if !@map 
+            if @map.nil?
                 format.json { render json: "unauthorized" }
             elsif @map.update_attributes(map_params)
                 format.json { head :no_content }
@@ -180,45 +153,36 @@ class MapsController < ApplicationController
 
     # POST maps/:id/upload_screenshot
     def screenshot
-        @current = current_user
-        @map = Map.find(params[:id]).authorize_to_edit(@current)
+      @map = Map.find(params[:id]).authorize_to_edit(current_user)
 
-        if @map
-          png = Base64.decode64(params[:encoded_image]['data:image/png;base64,'.length .. -1])
-          StringIO.open(png) do |data|
-            data.class.class_eval { attr_accessor :original_filename, :content_type }
-            data.original_filename = "map-" + @map.id.to_s + "-screenshot.png"
-            data.content_type = "image/png"
-            @map.screenshot = data
-          end
-          
-          if @map.save
-            render :json => {:message => "Successfully uploaded the map screenshot."}
-          else
-            render :json => {:message => "Failed to upload image."}
-          end
-        else
-            render :json => {:message => "Unauthorized to set map screenshot."}
+      if @map
+        png = Base64.decode64(params[:encoded_image]['data:image/png;base64,'.length .. -1])
+        StringIO.open(png) do |data|
+          data.class.class_eval { attr_accessor :original_filename, :content_type }
+          data.original_filename = "map-" + @map.id.to_s + "-screenshot.png"
+          data.content_type = "image/png"
+          @map.screenshot = data
         end
+        
+        if @map.save
+          render :json => {:message => "Successfully uploaded the map screenshot."}
+        else
+          render :json => {:message => "Failed to upload image."}
+        end
+      else
+        render :json => {:message => "Unauthorized to set map screenshot."}
+      end
     end
 
     # DELETE maps/:id
     def destroy
-        @current = current_user
-
-        @map = Map.find(params[:id]).authorize_to_delete(@current)
-
-        @map.delete if @map
-
-        respond_to do |format|
-            format.json { 
-                if @map
-                    render json: "success"
-                else
-                    render json: "unauthorized"
-                end
-            }
-        end
+      @map = Map.find(params[:id]).authorize_to_delete(current_user)
+      if @map
+        @map.delete
+        render json: "success"
+      else
+        render json: "unauthorized"
+      end
     end
 
     private

@@ -61,6 +61,18 @@ class User < ActiveRecord::Base
     json['rtype'] = "mapper"
     json
   end
+
+  def details_json
+    details = Hash.new
+    details['name'] = @user.name
+    details['created_at'] = @user.created_at.strftime("%m/%d/%Y")
+    details['image'] = @user.image.url(:ninetysix)
+    details['generation'] = @user.generation
+    details['numSynapses'] = @user.synapses.count
+    details['numTopics'] = @user.topics.count
+    details['numMaps'] = @user.maps.count
+    details
+  end
   
   #generate a random 8 letter/digit code that they can use to invite people
   def generate_code

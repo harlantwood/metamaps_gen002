@@ -9,9 +9,9 @@
 	Metamaps.currentSection = "map";
 	Metamaps.currentPage = <%= @map.id.to_s %>;
     Metamaps.Active.Map = <%= @map.to_json.html_safe %>;
-    Metamaps.Mappers = <%= @allmappers.to_json.html_safe %>;
-    Metamaps.Topics = <%= @alltopics.to_json.html_safe %>;
-    Metamaps.Synapses = <%= @allsynapses.to_json.html_safe %>;
-    Metamaps.Mappings = <%= @allmappings.to_json.html_safe %>;
+    Metamaps.Mappers = <%= @map.allmappers.to_json.html_safe %>;
+    Metamaps.Topics = <%= @map.alltopics.to_json.html_safe %>;
+    Metamaps.Synapses = <%= @map.allsynapses.to_json.html_safe %>;
+    Metamaps.Mappings = <%= @map.allmappings.to_json.html_safe %>;
     Metamaps.Visualize.type = "ForceDirected";
 </script>
