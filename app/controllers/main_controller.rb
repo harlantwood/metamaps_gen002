@@ -23,33 +23,59 @@ class MainController < ApplicationController
   end
   
   ### SEARCHING ###
+
+  def searchtopics_desc(term, user = nil)
+    search = '%' + term + '%'
+    if !user
+      topics = Topic.where('LOWER("desc") like ?', search).order('"name"')
+    elsif user
+      topics = Topic.where('LOWER("desc") like ?', search).where('user_id = ?', user).order('"name"')
+    end
+  end
+
+  def searchtopics_link(term, user = nil)
+    search = '%' + term + '%'
+    if !user
+      topics = Topic.where('LOWER("link") like ?', search).order('"name"')
+    elsif user
+      topics = Topic.where('LOWER("link") like ?', search).where('user_id = ?', user).order('"name"')
+    end
+  end
+
+  def searchtopics_regular(term, user = nil, filterByMetacode = nil)
+    search = term + '%'
+
+    base_query = Topic.all
+    base_query = base_query.where('metacode_id = ?', filterByMetacode.id) if filterByMetacode
+    base_query = base_query.where('user_id = ?', user) if user
+    base_query = base_query.order('"name"')
+    topics = base_query.where('LOWER("name") like ?', search)
+    topics2 = base_query.where('LOWER("name") like ?', '%' + search)
+    topics3 = base_query.where('LOWER("desc") like ?', '%' + search)
+    topics4 = base_query.where('LOWER("link") like ?', '%' + search)
+    topics = topics + (topics2 - topics)
+    topics = topics + (topics3 - topics)
+    topics = topics + (topics4 - topics)
+  end
   
   # get /search/topics?term=SOMETERM
   def searchtopics
-    term = params[:term]
-    user = params[:user] ? params[:user] : false
-    
-    if term && !term.empty? && term.downcase[0..3] != "map:" && term.downcase[0..6] != "mapper:" && term.downcase != "topic:"
-      
-      #remove "topic:" if appended at beginning
-      term = term[6..-1] if term.downcase[0..5] == "topic:"
-      
-      #if desc: search desc instead
-      desc = false
-      if term.downcase[0..4] == "desc:"
-        term = term[5..-1] 
-        desc = true
-      end
-      
-      #if link: search link instead
-      link = false
-      if term.downcase[0..4] == "link:"
-        term = term[5..-1] 
-        link = true
-      end
-      
+    term = params[:term].downcase
+    user = params[:user] ? params[:user] : nil
+
+    #remove "topic:" if appended at beginning
+    #TODO check errors?
+    term = term[6..-1] if term.downcase[0..5] == "topic:"
+
+    if term.blank? || term[0..3] == "map:" || term[0..6] == "mapper":
+      @topics = []
+    elisf term[0..4] == "desc:"
+      @topics = searchtopics_desc(term[5..-1], user)
+    elsif term[0..4] == "link:"
+      @topics = searchtopics_link(term[5..-1], user)
+    else
       #check whether there's a filter by metacode as part of the query
-      filterByMetacode = false
+      filterByMetacode = nil
       Metacode.all.each do |m|
         lOne = m.name.length+1
         lTwo = m.name.length
@@ -60,63 +86,7 @@ class MainController < ApplicationController
         end
       end
       
-      if filterByMetacode
-        if term == ""
-          @topics = []
-        else
-          search = term.downcase + '%'
-          
-          if user
-            @topics = Set.new(Topic.where('LOWER("name") like ?', search).where('metacode_id = ? AND user_id = ?',  filterByMetacode.id, user).order('"name"'))
-            @topics2 = Set.new(Topic.where('LOWER("name") like ?', '%' + search).where('metacode_id = ? AND user_id = ?',  filterByMetacode.id, user).order('"name"'))
-            @topics3 = Set.new(Topic.where('LOWER("desc") like ?', '%' + search).where('metacode_id = ? AND user_id = ?',  filterByMetacode.id, user).order('"name"'))
-            @topics4 = Set.new(Topic.where('LOWER("link") like ?', '%' + search).where('metacode_id = ? AND user_id = ?',  filterByMetacode.id, user).order('"name"'))
-          else
-            @topics = Set.new(Topic.where('LOWER("name") like ?', search).where('metacode_id = ?',  filterByMetacode.id).order('"name"'))
-            @topics2 = Set.new(Topic.where('LOWER("name") like ?', '%' + search).where('metacode_id = ?',  filterByMetacode.id).order('"name"'))
-            @topics3 = Set.new(Topic.where('LOWER("desc") like ?', '%' + search).where('metacode_id = ?',  filterByMetacode.id).order('"name"'))
-            @topics4 = Set.new(Topic.where('LOWER("link") like ?', '%' + search).where('metacode_id = ?',  filterByMetacode.id).order('"name"'))
-          end
-
-          #get unique elements only through the magic of Sets
-          @topics = (@topics + @topics2 + @topics3 + @topics4).to_a
-        end
-      elsif desc
-        search = '%' + term.downcase + '%'
-        if !user
-          @topics = Topic.where('LOWER("desc") like ?', search).order('"name"')
-        elsif user
-          @topics = Topic.where('LOWER("desc") like ?', search).where('user_id = ?', user).order('"name"')
-        end
-      elsif link
-        search = '%' + term.downcase + '%'
-        if !user
-          @topics = Topic.where('LOWER("link") like ?', search).order('"name"')
-        elsif user
-          @topics = Topic.where('LOWER("link") like ?', search).where('user_id = ?', user).order('"name"')
-        end
-      else #regular case, just search the name
-        search = term.downcase + '%'
-        if !user
-          @topics = Topic.where('LOWER("name") like ?', search).order('"name"')
-          @topics2 = Topic.where('LOWER("name") like ?', '%' + search).order('"name"')
-          @topics3 = Topic.where('LOWER("desc") like ?', '%' + search).order('"name"')
-          @topics4 = Topic.where('LOWER("link") like ?', '%' + search).order('"name"')
-          @topics = @topics + (@topics2 - @topics)
-          @topics = @topics + (@topics3 - @topics)
-          @topics = @topics + (@topics4 - @topics)
-        elsif user
-          @topics = Topic.where('LOWER("name") like ?', search).where('user_id = ?', user).order('"name"')
-          @topics2 = Topic.where('LOWER("name") like ?', '%' + search).where('user_id = ?', user).order('"name"')
-          @topics3 = Topic.where('LOWER("desc") like ?', '%' + search).where('user_id = ?', user).order('"name"')
-          @topics4 = Topic.where('LOWER("link") like ?', '%' + search).where('user_id = ?', user).order('"name"')
-          @topics = @topics + (@topics2 - @topics)
-          @topics = @topics + (@topics3 - @topics)
-          @topics = @topics + (@topics4 - @topics)
-        end
-      end
-    else
-      @topics = []
+      @topics = searchtopics_regular(term, user, filterByMetacode)
     end
     
     #read this next line as 'delete a topic if its private and you're either 1. logged out or 2. logged in but not the topic creator
