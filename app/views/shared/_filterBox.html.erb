@@ -17,23 +17,23 @@
 #and metacodes is filled with all the metacodes that are being used on the map.
 
   if @map
-    @alltopics.each_with_index do |topic, index| 
+    @map.alltopics.each_with_index do |topic, index| 
       if @metacodes.index(topic.metacode) == nil
         @metacodes.push(topic.metacode)
       end
     end 
-    @allsynapses.each_with_index do |synapse, index| 
+    @map.allsynapses.each_with_index do |synapse, index| 
       if @synapses.index{|s| s.desc == synapse.desc} == nil
         @synapses.push(synapse)
       end
     end
-    @allmappings.each_with_index do |mapping, index|
+    @map.allmappings.each_with_index do |mapping, index|
       if @mappers.index(mapping.user) == nil
         @mappers.push(mapping.user)
       end
     end
   elsif @topic 
-    @alltopics.each_with_index do |topic, index| 
+    @map.alltopics.each_with_index do |topic, index| 
       if @metacodes.index(topic.metacode) == nil
         @metacodes.push(topic.metacode)
       end
@@ -41,7 +41,7 @@
         @mappers.push(topic.user)
       end
     end 
-    @allsynapses.each_with_index do |synapse, index| 
+    @map.allsynapses.each_with_index do |synapse, index| 
       if @synapses.index{|s| s.desc == synapse.desc} == nil
         @synapses.push(synapse)
       end

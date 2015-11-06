@@ -5,6 +5,8 @@ class MapFacade
     @map = map
   end
 
+  delegate :authorize_to_edit, :created_at, :id, :name, :permission, :updated_at, :user, to: :map
+
   def allmappers
     @allmappers = map.contributors
   end
