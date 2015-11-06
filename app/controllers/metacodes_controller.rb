@@ -5,9 +5,6 @@ class MetacodesController < ApplicationController
   # GET /metacodes.json
   def index
     @metacodes = Metacode.order("name").all
-    @metacodes.map do |metacode|
-      metacode.icon = ActionController::Base.helpers.asset_path(metacode.icon)
-    end
 
     respond_to do |format|
       format.html {
@@ -20,18 +17,6 @@ class MetacodesController < ApplicationController
       format.json { render json: @metacodes }
     end
   end
-
-  ### SHOW IS CURRENTLY DISABLED
-  # GET /metacodes/1
-  # GET /metacodes/1.json
-#  def show
-#    @metacode = Metacode.find(params[:id])
-#
-#    respond_to do |format|
-#      format.html # show.html.erb
-#      format.json { render json: @metacode }
-#    end
-#  end
 
   # GET /metacodes/new
   # GET /metacodes/new.json
@@ -81,24 +66,10 @@ class MetacodesController < ApplicationController
     end
   end
 
-    
-  ### DESTROY IS CURRENTLY DISABLED
-  # DELETE /metacodes/1
-  # DELETE /metacodes/1.json
-#  def destroy
-#    @metacode = Metacode.find(params[:id])
-#    @metacode.destroy
-#
-#    respond_to do |format|
-#      format.html { redirect_to metacodes_url }
-#      format.json { head :no_content }
-#    end
-#  end
-
   private
 
-    # Never trust parameters from the scary internet, only allow the white list through.      
-    def metacode_params
-      params.require(:metacode).permit(:id, :name, :icon, :color)
-    end
+  # Never trust parameters from the scary internet, only allow the white list through.      
+  def metacode_params
+    params.require(:metacode).permit(:id, :name, :icon, :color)
+  end
 end
