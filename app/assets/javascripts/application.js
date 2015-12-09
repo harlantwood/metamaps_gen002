@@ -16,6 +16,7 @@
 //= require ./orderedLibraries/underscore
 //= require ./orderedLibraries/backbone
 //= require_directory ./lib
+//= require homepageVimeoFallback
 //= require ./src/Metamaps.GlobalUI
 //= require ./src/Metamaps.Router
 //= require ./src/Metamaps.Backbone
