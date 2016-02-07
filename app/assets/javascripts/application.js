@@ -16,12 +16,16 @@
 //= require ./orderedLibraries/underscore
 //= require ./orderedLibraries/backbone
 //= require_directory ./lib
+//= require ./src/Metamaps
 //= require ./src/Metamaps.GlobalUI
 //= require ./src/Metamaps.Router
 //= require ./src/Metamaps.Backbone
 //= require ./src/Metamaps.Views
 //= require ./src/JIT
-//= require ./src/Metamaps
+//= require ./src/Metamaps.Settings
+//= require ./src/Metamaps.Touch
+//= require ./src/Metamaps.Mouse
+//= require ./src/Metamaps.Selected
 //= require ./src/Metamaps.Backbone.init
 //= require ./src/Metamaps.Create
 //= require ./src/Metamaps.TopicCard

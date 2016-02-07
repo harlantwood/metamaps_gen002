@@ -1,3 +1,48 @@
+var Metamaps = {};
+/*
+ * The Metamaps variable declaration above defines a Javascript object that will
+ * contain all of the variables and functions used by us. They are broken down
+ * into sub modules that can be organized into two groups:
+ *
+ * All pages in Metamaps need these objects:
+ *
+ * GlobalUI
+ * Active
+ * Maps
+ * Mappers
+ * Backbone
+ * 
+ * Pages that use the Javacsript InfoVis Toolkit (Topic or Map) additionally
+ * require these files:
+ *
+ * Settings
+ * Touch
+ * Mouse
+ * Selected
+ * Metacodes
+ * Topics
+ * Synapses
+ * Mappings
+ * Create
+ * TopicCard
+ * SynapseCard
+ * Visualize
+ * Util
+ * Realtime
+ * Control
+ * Filter
+ * Listeners
+ * Organize
+ * Map
+ * Mapper
+ * Topic
+ * Synapse
+ * JIT 
+ *
+ */
+
+
+// TODO eliminate these 4 global variables
 var labelType, useGradients, nativeTextSupport, animate;
 
 (function () {
@@ -20,53 +65,36 @@ var tempNode = null,
     tempInit = false,
     tempNode2 = null;
 
-Metamaps.Settings = {
-    embed: false, // indicates that the app is on a page that is optimized for embedding in iFrames on other web pages
-    sandbox: false, // puts the app into a mode (when true) where it only creates data locally, and isn't writing it to the database
-    colors: {
-        background: '#344A58',
-        synapses: {
-            normal: '#888888',
-            hover: '#888888',
-            selected: '#FFFFFF'
-        },
-        topics: {
-            selected: '#FFFFFF'
-        },
-        labels: {
-            background: '#18202E',
-            text: '#DDD'
+Metamaps.Active = {
+    Map: null,
+    Topic: null,
+    Mapper: null
+};
+
+Metamaps.Maps = {};
+
+$(document).ready(function () {
+
+    for (var prop in Metamaps) {
+
+        // this runs the init function within each sub-object on the Metamaps one
+        if (Metamaps.hasOwnProperty(prop) &&
+            Metamaps[prop].hasOwnProperty('init') &&
+            typeof (Metamaps[prop].init) == 'function'
+        ) {
+            Metamaps[prop].init();
         }
-    },
-};
+    }
 
-Metamaps.Touch = {
-    touchPos: null, // this stores the x and y values of a current touch event 
-    touchDragNode: null // this stores a reference to a JIT node that is being dragged
-};
+    // initialize the famous ui
+    var callFamous = function(){
+        if (Metamaps.Famous) {
+            Metamaps.Famous.build();
+        }
+        else {
+            setTimeout(callFamous, 100);
+        }
+    }
+    callFamous();
+});
 
-Metamaps.Mouse = {
-    didPan: false,
-    didBoxZoom: false,
-    changeInX: 0,
-    changeInY: 0,
-    edgeHoveringOver: false,
-    boxStartCoordinates: false,
-    boxEndCoordinates: false,
-    synapseStartCoordinates: [],
-    synapseEndCoordinates: null,
-    lastNodeClick: 0,
-    lastCanvasClick: 0,
-    DOUBLE_CLICK_TOLERANCE: 300
-};
-
-Metamaps.Selected = {
-    reset: function () {
-        var self = Metamaps.Selected;
-
-        self.Nodes = [];
-        self.Edges = [];
-    },
-    Nodes: [],
-    Edges: []
-};
