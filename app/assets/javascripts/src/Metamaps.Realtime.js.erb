@@ -1,0 +1,814 @@
+Metamaps.Realtime = {
+    socket: null,
+    isOpen: false,
+    changing: false,
+    mappersOnMap: {},
+    status: true, // stores whether realtime is True/On or False/Off
+    init: function () {
+        var self = Metamaps.Realtime;
+
+        var reenableRealtime = function () {
+            self.reenableRealtime();
+        };
+        var turnOff = function () {
+            self.turnOff();
+        };
+        $(".rtOn").click(reenableRealtime);
+        $(".rtOff").click(turnOff);
+
+        $('.sidebarCollaborateIcon').click(self.toggleBox);
+        $('.sidebarCollaborateBox').click(function(event){ 
+            event.stopPropagation();
+        });
+        $('body').click(self.close);
+
+        self.socket = io.connect('<%= ENV['REALTIME_SERVER'] %>');
+        self.socket.on('connect', function () {
+            self.startActiveMap();
+        });
+    },
+    toggleBox: function (event) {
+        var self = Metamaps.Realtime;
+
+        if (self.isOpen) self.close();
+        else self.open();
+
+        event.stopPropagation();
+    },
+    open: function () {
+        var self = Metamaps.Realtime;
+
+        Metamaps.GlobalUI.Account.close();
+        Metamaps.Filter.close();
+        $('.sidebarCollaborateIcon div').addClass('hide');
+
+        if (!self.isOpen && !self.changing) {
+            self.changing = true;
+            $('.sidebarCollaborateBox').fadeIn(200, function () {
+                self.changing = false;
+                self.isOpen = true;
+            });
+        }
+    },
+    close: function () {
+        var self = Metamaps.Realtime;
+        $(".sidebarCollaborateIcon div").removeClass('hide');
+        if (!self.changing) {
+            self.changing = true;
+            $('.sidebarCollaborateBox').fadeOut(200, function () {
+                self.changing = false;
+                self.isOpen = false;
+            });
+        }
+    },
+    startActiveMap: function () {
+        var self = Metamaps.Realtime;
+
+        if (Metamaps.Active.Map && Metamaps.Active.Mapper) {
+            var commonsMap = Metamaps.Active.Map.get('permission') === 'commons';
+            var publicMap = Metamaps.Active.Map.get('permission') === 'public';
+
+            if (commonsMap) {
+                self.turnOn();
+                self.setupSocket();
+            }
+            else if (publicMap) {
+                self.attachMapListener();
+            }
+        }
+    },
+    endActiveMap: function () {
+        var self = Metamaps.Realtime;
+
+        $(document).off('mousemove');
+        self.socket.removeAllListeners();
+        self.socket.emit('endMapperNotify');
+        $(".collabCompass").remove();
+        self.status = false;
+    },
+    reenableRealtime: function() {
+        var confirmString = "The layout of your map has fallen out of sync with the saved copy. ";
+        confirmString += "To save your changes without overwriting the map, hit 'Cancel' and ";
+        confirmString += "then use 'Save to new map'. ";
+        confirmString += "Do you want to discard your changes and enable realtime?";
+        var c = confirm(confirmString);
+        if (c) {
+            Metamaps.Router.maps(Metamaps.Active.Map.id);
+        }
+    },
+    turnOn: function (notify) {
+        var self = Metamaps.Realtime;
+
+        if (notify) self.sendRealtimeOn();
+        $(".rtMapperSelf").removeClass('littleRtOff').addClass('littleRtOn');
+        $('.rtOn').addClass('active');
+        $('.rtOff').removeClass('active');
+        self.status = true;
+        $(".sidebarCollaborateIcon").addClass("blue");
+        $(".collabCompass").show();
+    },
+    turnOff: function (silent) {
+        var self = Metamaps.Realtime;
+
+        if (self.status) {
+            if (!silent) self.sendRealtimeOff();
+            $(".rtMapperSelf").removeClass('littleRtOn').addClass('littleRtOff');
+            $('.rtOn').removeClass('active');
+            $('.rtOff').addClass('active');
+            self.status = false;
+            $(".sidebarCollaborateIcon").removeClass("blue");
+            $(".collabCompass").hide();
+        }
+    },
+    setupSocket: function () {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+        var myId = Metamaps.Active.Mapper.id;
+        
+        socket.emit('newMapperNotify', {
+            userid: myId,
+            username: Metamaps.Active.Mapper.get("name"),
+            userimage: Metamaps.Active.Mapper.get("image"),
+            mapid: Metamaps.Active.Map.id
+        });
+
+        // if you're the 'new guy' update your list with who's already online
+        socket.on(myId + '-' + Metamaps.Active.Map.id + '-UpdateMapperList', self.updateMapperList);
+
+        // receive word that there's a new mapper on the map
+        socket.on('maps-' + Metamaps.Active.Map.id + '-newmapper', self.newPeerOnMap);
+
+        // receive word that a mapper left the map
+        socket.on('maps-' + Metamaps.Active.Map.id + '-lostmapper', self.lostPeerOnMap);
+
+        // receive word that there's a mapper turned on realtime
+        socket.on('maps-' + Metamaps.Active.Map.id + '-newrealtime', self.newCollaborator);
+
+        // receive word that there's a mapper turned on realtime
+        socket.on('maps-' + Metamaps.Active.Map.id + '-lostrealtime', self.lostCollaborator);
+
+        //
+        socket.on('maps-' + Metamaps.Active.Map.id + '-topicDrag', self.topicDrag);
+
+        //
+        socket.on('maps-' + Metamaps.Active.Map.id + '-newTopic', self.newTopic);
+
+        //
+        socket.on('maps-' + Metamaps.Active.Map.id + '-removeTopic', self.removeTopic);
+
+        //
+        socket.on('maps-' + Metamaps.Active.Map.id + '-newSynapse', self.newSynapse);
+
+        //
+        socket.on('maps-' + Metamaps.Active.Map.id + '-removeSynapse', self.removeSynapse);
+
+        // update mapper compass position
+        socket.on('maps-' + Metamaps.Active.Map.id + '-updatePeerCoords', self.updatePeerCoords);
+
+        // deletions
+        socket.on('deleteTopicFromServer', self.removeTopic);
+        socket.on('deleteSynapseFromServer', self.removeSynapse);
+
+        socket.on('topicChangeFromServer', self.topicChange);
+        socket.on('synapseChangeFromServer', self.synapseChange);
+        self.attachMapListener();
+    
+        // local event listeners that trigger events
+        var sendCoords = function (event) {
+            var pixels = {
+                x: event.pageX,
+                y: event.pageY
+            };
+            var coords = Metamaps.Util.pixelsToCoords(pixels);
+            self.sendCoords(coords);
+        };
+        $(document).mousemove(sendCoords);
+
+        var zoom = function (event, e) {
+            if (e) {
+                var pixels = {
+                    x: e.pageX,
+                    y: e.pageY
+                };
+                var coords = Metamaps.Util.pixelsToCoords(pixels);
+                self.sendCoords(coords);
+            }
+            self.positionPeerIcons();
+        };
+        $(document).on(Metamaps.JIT.events.zoom, zoom);
+
+        $(document).on(Metamaps.JIT.events.pan, self.positionPeerIcons);
+
+        var sendTopicDrag = function (event, positions) {
+            self.sendTopicDrag(positions);
+        };
+        $(document).on(Metamaps.JIT.events.topicDrag, sendTopicDrag);
+
+        var sendNewTopic = function (event, data) {
+            self.sendNewTopic(data);
+        };
+        $(document).on(Metamaps.JIT.events.newTopic, sendNewTopic);
+
+        var sendDeleteTopic = function (event, data) {
+            self.sendDeleteTopic(data);
+        };
+        $(document).on(Metamaps.JIT.events.deleteTopic, sendDeleteTopic);
+
+        var sendRemoveTopic = function (event, data) {
+            self.sendRemoveTopic(data);
+        };
+        $(document).on(Metamaps.JIT.events.removeTopic, sendRemoveTopic);
+
+        var sendNewSynapse = function (event, data) {
+            self.sendNewSynapse(data);
+        };
+        $(document).on(Metamaps.JIT.events.newSynapse, sendNewSynapse);
+
+        var sendDeleteSynapse = function (event, data) {
+            self.sendDeleteSynapse(data);
+        };
+        $(document).on(Metamaps.JIT.events.deleteSynapse, sendDeleteSynapse);
+
+        var sendRemoveSynapse = function (event, data) {
+            self.sendRemoveSynapse(data);
+        };
+        $(document).on(Metamaps.JIT.events.removeSynapse, sendRemoveSynapse);
+
+    },
+    attachMapListener: function(){
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        socket.on('mapChangeFromServer', self.mapChange);
+    },
+    sendRealtimeOn: function () {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // send this new mapper back your details, and the awareness that you're online
+        var update = {
+            username: Metamaps.Active.Mapper.get("name"),
+            userid: Metamaps.Active.Mapper.id,
+            mapid: Metamaps.Active.Map.id
+        };
+        socket.emit('notifyStartRealtime', update);
+    },
+    sendRealtimeOff: function () {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // send this new mapper back your details, and the awareness that you're online
+        var update = {
+            username: Metamaps.Active.Mapper.get("name"),
+            userid: Metamaps.Active.Mapper.id,
+            mapid: Metamaps.Active.Map.id
+        };
+        socket.emit('notifyStopRealtime', update);
+    },
+    updateMapperList: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // data.userid
+        // data.username
+        // data.userimage
+        // data.userrealtime
+
+        self.mappersOnMap[data.userid] = {
+            name: data.username,
+            image: data.userimage,
+            color: Metamaps.Util.getPastelColor(),
+            realtime: data.userrealtime,
+            coords: {
+                x: 0, 
+                y: 0
+            },
+        };
+
+        var onOff = data.userrealtime ? "On" : "Off";
+        var mapperListItem = '<li id="mapper';
+        mapperListItem += data.userid;
+        mapperListItem += '" class="rtMapper littleRt';
+        mapperListItem += onOff;
+        mapperListItem += '">';
+        mapperListItem += '<img style="border: 2px solid ' + self.mappersOnMap[data.userid].color + ';"';
+        mapperListItem += ' src="' + data.userimage + '" width="24" height="24" class="rtUserImage" />';
+        mapperListItem += data.username;
+        mapperListItem += '<div class="littleJuntoIcon"></div>';
+        mapperListItem += '</li>';
+
+        if (data.userid !== Metamaps.Active.Mapper.id) {
+            $('#mapper' + data.userid).remove();
+            $('.realtimeMapperList ul').append(mapperListItem);
+
+            // create a div for the collaborators compass
+            self.createCompass(data.username, data.userid, data.userimage, self.mappersOnMap[data.userid].color, !self.status);
+        }
+    },
+    newPeerOnMap: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // data.userid
+        // data.username
+        // data.userimage
+        // data.coords
+
+        self.mappersOnMap[data.userid] = {
+            name: data.username,
+            image: data.userimage,
+            color: Metamaps.Util.getPastelColor(),
+            realtime: true,
+            coords: {
+                x: 0, 
+                y: 0
+            },
+        };
+
+        // create an item for them in the realtime box
+        if (data.userid !== Metamaps.Active.Mapper.id && self.status) {
+            var mapperListItem = '<li id="mapper' + data.userid + '" class="rtMapper littleRtOn">';
+            mapperListItem += '<img style="border: 2px solid ' + self.mappersOnMap[data.userid].color + ';"';
+            mapperListItem += ' src="' + data.userimage + '" width="24" height="24" class="rtUserImage" />';
+            mapperListItem += data.username;
+            mapperListItem += '<div class="littleJuntoIcon"></div>';
+            mapperListItem += '</li>';
+            $('#mapper' + data.userid).remove();
+            $('.realtimeMapperList ul').append(mapperListItem);
+
+            // create a div for the collaborators compass
+            self.createCompass(data.username, data.userid, data.userimage, self.mappersOnMap[data.userid].color, !self.status);
+            
+            Metamaps.GlobalUI.notifyUser(data.username + ' just joined the map');
+
+            // send this new mapper back your details, and the awareness that you've loaded the map
+            var update = {
+                userToNotify: data.userid,
+                username: Metamaps.Active.Mapper.get("name"),
+                userimage: Metamaps.Active.Mapper.get("image"),
+                userid: Metamaps.Active.Mapper.id,
+                userrealtime: self.status,
+                mapid: Metamaps.Active.Map.id
+            };
+            socket.emit('updateNewMapperList', update);
+        }
+    },
+    createCompass: function(name, id, image, color, hide) {
+        var str =  '<img width="28" height="28" src="'+image+'" /><p>'+name+'</p>';
+        str += '<div id="compassArrow'+id+'" class="compassArrow"></div>';
+        $('#compass' + id).remove();
+        $('<div/>', {
+            id: 'compass' + id,
+            class: 'collabCompass'
+        }).html(str).appendTo('#wrapper');
+        if (hide) {
+            $('#compass' + id).hide();
+        }
+        $('#compass' + id + ' img').css({
+            'border': '2px solid ' + color
+        });
+        $('#compass' + id + ' p').css({
+            'background-color': color
+        });
+    },
+    lostPeerOnMap: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // data.userid
+        // data.username
+
+        delete self.mappersOnMap[data.userid];
+
+        $('#mapper' + data.userid).remove();
+        $('#compass' + data.userid).remove();
+
+        Metamaps.GlobalUI.notifyUser(data.username + ' just left the map');
+    },
+    newCollaborator: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // data.userid
+        // data.username
+
+        self.mappersOnMap[data.userid].realtime = true;
+
+        $('#mapper' + data.userid).removeClass('littleRtOff').addClass('littleRtOn');
+        $('#compass' + data.userid).show();
+
+        Metamaps.GlobalUI.notifyUser(data.username + ' just turned on realtime');
+    },
+    lostCollaborator: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        // data.userid
+        // data.username
+
+        self.mappersOnMap[data.userid].realtime = false;
+
+        $('#mapper' + data.userid).removeClass('littleRtOn').addClass('littleRtOff');
+        $('#compass' + data.userid).hide();
+
+        Metamaps.GlobalUI.notifyUser(data.username + ' just turned off realtime');
+    },
+    updatePeerCoords: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        self.mappersOnMap[data.userid].coords={x: data.usercoords.x,y:data.usercoords.y};
+        self.positionPeerIcon(data.userid);
+    },
+    positionPeerIcons: function () {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        if (self.status) { // if i have realtime turned on
+            for (var key in self.mappersOnMap) {
+                var mapper = self.mappersOnMap[key];
+                if (mapper.realtime) {
+                    self.positionPeerIcon(key);
+                }
+            }
+        }
+    },
+    positionPeerIcon: function (id) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        var mapper = self.mappersOnMap[id];
+        var xMax=$(document).width();
+        var yMax=$(document).height();
+        var compassDiameter=56;
+        var compassArrowSize=24;
+        
+        var origPixels = Metamaps.Util.coordsToPixels(mapper.coords);
+        var pixels = self.limitPixelsToScreen(origPixels);
+        $('#compass' + id).css({
+            left: pixels.x + 'px',
+            top: pixels.y + 'px'
+        });
+        /* showing the arrow if the collaborator is off of the viewport screen */
+        if (origPixels.x !== pixels.x || origPixels.y !== pixels.y) {
+
+            var dy = origPixels.y - pixels.y; //opposite
+            var dx = origPixels.x - pixels.x; // adjacent
+            var ratio = dy / dx;
+            var angle = Math.atan2(dy, dx);
+            
+            $('#compassArrow' + id).show().css({
+                transform: 'rotate(' + angle + 'rad)',
+                "-webkit-transform": 'rotate(' + angle + 'rad)',
+            });
+            
+            if (dx > 0) {
+                $('#compass' + id).addClass('labelLeft');
+            }
+        } else {
+            $('#compassArrow' + id).hide();
+            $('#compass' + id).removeClass('labelLeft');
+        }
+    },
+    limitPixelsToScreen: function (pixels) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        var xLimit, yLimit;
+        var xMax=$(document).width();
+        var yMax=$(document).height();
+        var compassDiameter=56;
+        var compassArrowSize=24;
+        
+        xLimit = Math.max(0 + compassArrowSize, pixels.x);
+        xLimit = Math.min(xLimit, xMax - compassDiameter);
+        yLimit = Math.max(0 + compassArrowSize, pixels.y);
+        yLimit = Math.min(yLimit, yMax - compassDiameter);
+        
+        return {x:xLimit,y:yLimit};
+    },
+    sendCoords: function (coords) {
+        var self = Metamaps.Realtime;
+        var socket = Metamaps.Realtime.socket;
+
+        var map = Metamaps.Active.Map;
+        var mapper = Metamaps.Active.Mapper;
+
+        if (self.status && map.authorizeToEdit(mapper) && socket) {
+            var update = {
+                usercoords: coords,
+                userid: Metamaps.Active.Mapper.id,
+                mapid: Metamaps.Active.Map.id
+            };
+            socket.emit('updateMapperCoords', update);
+        }
+    },
+    sendTopicDrag: function (positions) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map && self.status) {
+            positions.mapid = Metamaps.Active.Map.id;
+            socket.emit('topicDrag', positions);
+        }
+    },
+    topicDrag: function (positions) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        var topic;
+        var node;
+
+        if (Metamaps.Active.Map && self.status) {
+            for (var key in positions) {
+                topic = Metamaps.Topics.get(key);
+                if (topic) node = topic.get('node');
+                if (node) node.pos.setc(positions[key].x, positions[key].y);
+            } //for
+            Metamaps.Visualize.mGraph.plot();
+        }
+    },
+    sendTopicChange: function (topic) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        var data = {
+            topicId: topic.id
+        }
+
+        socket.emit('topicChangeFromClient', data);
+    },
+    topicChange: function (data) {
+        var topic = Metamaps.Topics.get(data.topicId);
+        if (topic) {
+            var node = topic.get('node');
+            topic.fetch({
+                success: function (model) {
+                    model.set({ node: node });
+                    model.trigger('changeByOther');
+                }
+            });
+        }
+    },
+    sendSynapseChange: function (synapse) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        var data = {
+            synapseId: synapse.id
+        }
+
+        socket.emit('synapseChangeFromClient', data);
+    },
+    synapseChange: function (data) {
+        var synapse = Metamaps.Synapses.get(data.synapseId);
+        if (synapse) {
+            // edge reset necessary because fetch causes model reset
+            var edge = synapse.get('edge');
+            synapse.fetch({
+                success: function (model) {
+                    model.set({ edge: edge });
+                    model.trigger('changeByOther');
+                }
+            });
+        }
+    },
+    sendMapChange: function (map) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        var data = {
+            mapId: map.id
+        }
+
+        socket.emit('mapChangeFromClient', data);
+    },
+    mapChange: function (data) {
+        var map = Metamaps.Active.Map;
+        var isActiveMap = map && data.mapId === map.id;
+        if (isActiveMap) {
+            var permBefore = map.get('permission');
+            var idBefore = map.id;
+            map.fetch({
+                success: function (model, response) {
+
+                    var idNow = model.id;
+                    var permNow = model.get('permission');
+                    if (idNow !== idBefore) {
+                        Metamaps.Map.leavePrivateMap(); // this means the map has been changed to private
+                    }
+                    else if (permNow === 'public' && permBefore === 'commons') {
+                        Metamaps.Map.commonsToPublic();
+                    }
+                    else if (permNow === 'commons' && permBefore === 'public') {
+                        Metamaps.Map.publicToCommons();
+                    }
+                    else {
+                        model.fetchContained();
+                        model.trigger('changeByOther');
+                    }
+                }
+            });
+        }
+    },
+    // newTopic
+    sendNewTopic: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map && self.status) {
+            data.mapperid = Metamaps.Active.Mapper.id;
+            data.mapid = Metamaps.Active.Map.id;
+            socket.emit('newTopic', data);
+        }
+    },
+    newTopic: function (data) {
+        var topic, mapping, mapper, mapperCallback, cancel;
+
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (!self.status) return;
+
+        function waitThenRenderTopic() {
+            if (topic && mapping && mapper) {
+                Metamaps.Topic.renderTopic(mapping, topic, false, false);
+            }
+            else if (!cancel) {
+                setTimeout(waitThenRenderTopic, 10);
+            }
+        }
+
+        mapper = Metamaps.Mappers.get(data.mapperid);
+        if (mapper === undefined) {
+            mapperCallback = function (m) {
+                Metamaps.Mappers.add(m);
+                mapper = m;
+            };
+            Metamaps.Mapper.get(data.mapperid, mapperCallback);
+        }
+        $.ajax({
+            url: "/topics/" + data.mappableid + ".json",
+            success: function (response) {
+                Metamaps.Topics.add(response);
+                topic = Metamaps.Topics.get(response.id);
+            },
+            error: function () {
+                cancel = true;
+            }
+        });
+        $.ajax({
+            url: "/mappings/" + data.mappingid + ".json",
+            success: function (response) {
+                Metamaps.Mappings.add(response);
+                mapping = Metamaps.Mappings.get(response.id);
+            },
+            error: function () {
+                cancel = true;
+            }
+        });
+
+        waitThenRenderTopic();
+    },
+    // removeTopic
+    sendDeleteTopic: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map) {
+            socket.emit('deleteTopicFromClient', data);
+        }
+    },
+    // removeTopic
+    sendRemoveTopic: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map) {
+            data.mapid = Metamaps.Active.Map.id;
+            socket.emit('removeTopic', data);
+        }
+    },
+    removeTopic: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (!self.status) return;
+
+        var topic = Metamaps.Topics.get(data.mappableid);
+        if (topic) {
+            var node = topic.get('node');
+            var mapping = topic.getMapping();
+            Metamaps.Control.hideNode(node.id);
+            Metamaps.Topics.remove(topic);
+            Metamaps.Mappings.remove(mapping);
+        }
+    },
+    // newSynapse
+    sendNewSynapse: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map) {
+            data.mapperid = Metamaps.Active.Mapper.id;
+            data.mapid = Metamaps.Active.Map.id;
+            socket.emit('newSynapse', data);
+        }
+    },
+    newSynapse: function (data) {
+        var topic1, topic2, node1, node2, synapse, mapping, cancel;
+
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (!self.status) return;
+
+        function waitThenRenderSynapse() {
+            if (synapse && mapping && mapper) {
+                topic1 = synapse.getTopic1();
+                node1 = topic1.get('node');
+                topic2 = synapse.getTopic2();
+                node2 = topic2.get('node');
+
+                Metamaps.Synapse.renderSynapse(mapping, synapse, node1, node2, false);
+            }
+            else if (!cancel) {
+                setTimeout(waitThenRenderSynapse, 10);
+            }
+        }
+
+        mapper = Metamaps.Mappers.get(data.mapperid);
+        if (mapper === undefined) {
+            mapperCallback = function (m) {
+                Metamaps.Mappers.add(m);
+                mapper = m;
+            };
+            Metamaps.Mapper.get(data.mapperid, mapperCallback);
+        }
+        $.ajax({
+            url: "/synapses/" + data.mappableid + ".json",
+            success: function (response) {
+                Metamaps.Synapses.add(response);
+                synapse = Metamaps.Synapses.get(response.id);
+            },
+            error: function () {
+                cancel = true;
+            }
+        });
+        $.ajax({
+            url: "/mappings/" + data.mappingid + ".json",
+            success: function (response) {
+                Metamaps.Mappings.add(response);
+                mapping = Metamaps.Mappings.get(response.id);
+            },
+            error: function () {
+                cancel = true;
+            }
+        });
+        waitThenRenderSynapse();
+    },
+    // deleteSynapse
+    sendDeleteSynapse: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map) {
+            data.mapid = Metamaps.Active.Map.id;
+            socket.emit('deleteSynapseFromClient', data);
+        }
+    },
+    // removeSynapse
+    sendRemoveSynapse: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (Metamaps.Active.Map) {
+            data.mapid = Metamaps.Active.Map.id;
+            socket.emit('removeSynapse', data);
+        }
+    },
+    removeSynapse: function (data) {
+        var self = Metamaps.Realtime;
+        var socket = self.socket;
+
+        if (!self.status) return;
+
+        var synapse = Metamaps.Synapses.get(data.mappableid);
+        if (synapse) {
+            var edge = synapse.get('edge');
+            var mapping = synapse.getMapping();
+            if (edge.getData("mappings").length - 1 === 0) {
+                Metamaps.Control.hideEdge(edge);
+            }
+            
+            var index = _.indexOf(edge.getData("synapses"), synapse);
+            edge.getData("mappings").splice(index, 1);
+            edge.getData("synapses").splice(index, 1);
+            if (edge.getData("displayIndex")) {
+                delete edge.data.$displayIndex;
+            }
+            Metamaps.Synapses.remove(synapse);
+            Metamaps.Mappings.remove(mapping);
+        }
+    },
+}; // end Metamaps.Realtime
