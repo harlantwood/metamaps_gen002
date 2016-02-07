@@ -22,6 +22,7 @@
 //= require ./src/Metamaps.Views
 //= require ./src/JIT
 //= require ./src/Metamaps
+//= require ./src/Metamaps.Backbone.init
 //= require ./src/Metamaps.Create
 //= require ./src/Metamaps.TopicCard
 //= require ./src/Metamaps.SynapseCard
