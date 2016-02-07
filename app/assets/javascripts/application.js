@@ -22,6 +22,14 @@
 //= require ./src/Metamaps.Views
 //= require ./src/JIT
 //= require ./src/Metamaps
+//= require ./src/Metamaps.Listeners
+//= require ./src/Metamaps.Organize
+//= require ./src/Metamaps.Topic
+//= require ./src/Metamaps.Synapse
+//= require ./src/Metamaps.Map
+//= require ./src/Metamaps.Account
+//= require ./src/Metamaps.Mapper
+//= require ./src/Metamaps.Admin
 //= require ./src/Metamaps.JIT
 //= require_directory ./shims
 //= require_directory ./require
