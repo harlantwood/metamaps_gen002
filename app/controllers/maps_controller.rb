@@ -46,7 +46,6 @@ class MapsController < ApplicationController
 
     # GET maps/:id
     def show
-
         @current = current_user
         @map = Map.find(params[:id]).authorize_to_show(@current)
 
