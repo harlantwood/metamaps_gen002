@@ -13,9 +13,7 @@ class MappingsController < ApplicationController
 
   # POST /mappings.json
   def create
-    @mapping = Mapping.new(params[:mapping])
-
-    @mapping.map.touch(:updated_at)
+    @mapping = Mapping.new(mapping_params)
 
     if @mapping.save
       render json: @mapping, status: :created
@@ -28,9 +26,7 @@ class MappingsController < ApplicationController
   def update
     @mapping = Mapping.find(params[:id])
 
-    @mapping.map.touch(:updated_at)
-
-    if @mapping.update_attributes(params[:mapping])
+    if @mapping.update_attributes(mapping_params)
       head :no_content
     else
       render json: @mapping.errors, status: :unprocessable_entity
@@ -44,8 +40,12 @@ class MappingsController < ApplicationController
 
     @mapping.destroy
 
-    @map.touch(:updated_at)
-
     head :no_content 
   end
+
+  private
+    # Never trust parameters from the scary internet, only allow the white list through.
+    def mapping_params
+      params.require(:mapping).permit(:id, :xloc, :yloc, :mappable_id, :mappable_type, :map_id, :user_id)
+    end
 end

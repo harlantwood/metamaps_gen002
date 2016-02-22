@@ -1,5 +1,4 @@
 class Metacode < ActiveRecord::Base
-
   has_many :in_metacode_sets
   has_many :metacode_sets, :through => :in_metacode_sets 
   has_many :topics
@@ -13,5 +12,4 @@ class Metacode < ActiveRecord::Base
     return true if self.metacode_sets.include? metacode_set
     return false
   end
-
 end
