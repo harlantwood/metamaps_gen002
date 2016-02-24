@@ -66,8 +66,8 @@ class MapsController < ApplicationController
                 respond_with(@allmappers, @allmappings, @allsynapses, @alltopics, @map) 
             }
             format.json { render json: @map }
-            format.csv { send_data @map.to_csv }
-            format.xls
+            format.csv MapExportService.new(self, @map).render_csv
+            format.xls MapExportService.new(self, @map).render_xls
         end
     end
 
