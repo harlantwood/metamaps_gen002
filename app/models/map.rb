@@ -79,14 +79,14 @@ class Map < ActiveRecord::Base
     json
   end
 
+  # iterable: @map.to_spreadsheet.each { |row| ... }
   def to_spreadsheet
-    spreadsheet = []
-    spreadsheet << ["Topics"]
-    spreadsheet << ["Id", "Name", "Metacode", "X", "Y", "Description", "Link", "User", "Permission"]
+    yield ["Topics"]
+    yield ["Id", "Name", "Metacode", "X", "Y", "Description", "Link", "User", "Permission"]
     self.topicmappings.each do |mapping|
       topic = mapping.mappable
       next if topic.nil?
-      spreadsheet << [
+      yield [
         topic.id,
         topic.name,
         topic.metacode.name,
@@ -98,11 +98,11 @@ class Map < ActiveRecord::Base
         topic.permission
       ]
     end
-    spreadsheet << []
-    spreadsheet << ["Synapses"]
-    spreadsheet << ["Id", "Description", "Category", "Topic1", "Topic2", "User", "Permission"]
+    yield []
+    yield ["Synapses"]
+    yield ["Id", "Description", "Category", "Topic1", "Topic2", "User", "Permission"]
     self.synapses.each do |synapse|
-      spreadsheet << [
+      yield [
         synapse.id,
         synapse.desc,
         synapse.category,
@@ -112,7 +112,6 @@ class Map < ActiveRecord::Base
         synapse.permission
       ]
     end
-    spreadsheet
   end
 
   def to_csv(options = {})
