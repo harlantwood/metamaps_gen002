@@ -5,4 +5,11 @@ rvm:
   - 2.3.0
   - ruby-head
 before_script:
+  - export RAILS_ENV=test
   - cp .example-env .env
+  - rake db:create
+  - rake db:schema:load
+
+# before_install:
+#   - sudo apt-get update -qq
+#   - sudo apt-get install imagemagick -y
